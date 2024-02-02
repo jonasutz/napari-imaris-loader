@@ -95,22 +95,44 @@ def ims_reader(path,resLevel='max', colorsIndependant=False, preCache=False):
     colormaps = []
     opacities = []
 
+    default_color = [1.0, 1.0, 1.0]  # Default white color
+    default_opacity = 1.0  # Default full opacity
+
     for cc in range(imsClass.Channels):
         # Names
-        channelNames.append(imsClass.read_attribute(f'/DataSetInfo/Channel {cc}', 'Name'))
+        try:
+            channel_name = imsClass.read_attribute(f'/DataSetInfo/Channel {cc}', 'Name')
+        except KeyError:  # Handle missing Name attribute
+            channel_name = f"Channel {cc}"
+        channelNames.append(channel_name)
+
         # Colors
-        color = [float(col) for col in imsClass.read_attribute(f'DataSetInfo/Channel {cc}', 'Color').split(" ")]
+        try:
+            color_attr = imsClass.read_attribute(f'/DataSetInfo/Channel {cc}', 'Color')
+            color = [float(col) for col in color_attr.split(" ")]
+        except KeyError:  # Handle missing Color attribute
+            color = default_color
+        except ValueError:  # Handle invalid color values
+            color = default_color
         colmap = vispy.color.Colormap([[0.0, 0.0, 0.0], color])
         colormaps.append(colmap)
 
         # Opacities
-        opacity = float(imsClass.read_attribute(f'/DataSetInfo/Channel {cc}', 'ColorOpacity'))
+        try:
+            opacity = float(imsClass.read_attribute(f'/DataSetInfo/Channel {cc}', 'ColorOpacity'))
+        except (KeyError, ValueError):  # Handle missing or invalid ColorOpacity attribute
+            opacity = default_opacity
         opacities.append(opacity)
 
         print(f"Extracted color: {color}")
 
+    # Handling for single channel names
     if len(channelNames) == 1:
-        channelNames = imsClass.read_attribute(f'/DataSetInfo/Channel 0', 'Name')
+        try:
+            channelNames = [imsClass.read_attribute('/DataSetInfo/Channel 0', 'Name')]
+        except KeyError:  # Fallback to default name if the attribute is missing
+            channelNames = ["Channel 0"]
+
 
     data = []
     for rr in range(imsClass.ResolutionLevels):
